@@ -16,7 +16,7 @@ else:
             print(y)
 
 
-print('The toal value summed between them is: ', total)
+print('The total value summed between them is: ', total)
 
 
 
