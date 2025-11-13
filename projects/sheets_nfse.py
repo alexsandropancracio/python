@@ -4,11 +4,11 @@ import csv
 import fitz
 from unidecode import unidecode
 
-pasta_ativas = r"C:\Users\Elisangela\Documents\OCR\NFSE - Ativas"
+pasta_ativas = r"C:\Users\Elisangela\Documents\OCR\nfse_ocr"
 pasta_planilhas = os.path.join(pasta_ativas, "Planilhas")
 os.makedirs(pasta_planilhas, exist_ok=True)
 
-arquivo_saida = os.path.join(pasta_planilhas, "relatorio_nfse_ativas.csv")
+arquivo_saida = os.path.join(pasta_planilhas, "relatorio_nfse.csv")
 
 def limpar_texto(texto):
     if not texto:
@@ -18,14 +18,33 @@ def limpar_texto(texto):
     t = re.sub(r"\s+", " ", t)
     return t.strip()
 
-def extrair_numero_de_arquivo(nome_arquivo, texto):
-    m = re.search(r"nfse[-_]?0*([0-9]+)", nome_arquivo, flags=re.IGNORECASE)
-    if m:
-        return m.group(1).zfill(8)
-    m2 = re.search(r"(?:numero\s*da\s*nota)[^\d]{0,20}([0-9]{1,12})", unidecode(texto).lower())
+def extrair_numero_nota(texto):
+    texto_limpo = unidecode(texto).lower()
+    texto_limpo = texto_limpo.replace("\r", " ").replace("\n", " ").replace("  ", " ")
+
+    padroes = [
+        r"(?:numero\s*da\s*nota)[^\d\n]{0,30}([a-z]{0,3}\s*\d{1,12})",
+        r"(?:nota\s*fiscal)[^\d\n]{0,30}([a-z]{0,3}\s*\d{1,12})",
+        r"\b[a-z]{0,3}\s*\d{6,12}\b"
+    ]
+
+    for p in padroes:
+        m = re.search(p, texto_limpo)
+        if m:
+            try:
+                numero_bruto = m.group(1) if m.lastindex and m.lastindex >= 1 else m.group(0)
+                numero = re.sub(r"\D", "", numero_bruto)
+                if numero and not re.match(r"20\d{2}$", numero):
+                    return numero.zfill(8)
+            except Exception as e:
+                print(f"⚠️ Erro ao processar padrão '{p}': {e}")
+
+    m2 = re.search(r"\b(?!20\d{2})\d{5,12}\b", texto_limpo)
     if m2:
-        return m2.group(1).zfill(8)
+        return m2.group(0).zfill(8)
+
     return "sem-numero"
+
 
 def extrair_valor(texto):
     txt = limpar_texto(texto).upper()
@@ -103,7 +122,7 @@ for nome_arquivo in arquivos:
 
         texto_l = limpar_texto(texto_total)
 
-        nº_nota = extrair_numero_de_arquivo(nome_arquivo, texto_l)
+        nº_nota = extrair_numero_nota(texto_l)
         cpf_cnpj = extrair_cpf_cnpj(texto_l)
         nome_razao = extrair_nome_razao(texto_l)
         endereco = extrair_endereco(texto_l)
